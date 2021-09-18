@@ -233,9 +233,43 @@ class ModelHandler(object):
         self.logger.close()
         return metrics
 
-    def _run_epoch(self, data_loader, training=True, rl_ratio=0, verbose=10, out_predictions=False):
+    def generate(self):
+        if self.test_loader is None:
+            print("No testing set specified -- skipped testing.")
+            return
+
+        # Restore best model
+        print('Restoring best model')
+        self.model.init_saved_network(self.dirname)
+        self.model.network = self.model.network.to(self.device)
+
+        self.is_test = True
+        self._reset_metrics()
+        timer = Timer("Test")
+        for param in self.model.network.parameters():
+            param.requires_grad = False
+
+        if self.bert_model is not None:
+            for param in self.bert_model.parameters():
+                param.requires_grad = False
+        print('[ Beam size: {} ]'.format(self.config['beam_size']))
+
+        output, _ = self._run_epoch(self.test_loader, training=False, verbose=0,
+                                    out_predictions=self.config['out_predictions'], mode='generate')
+        timer.finish()
+
+        if self.config['out_predictions']:
+            out_dir = self.config['out_dir'] if self.config['out_dir'] else self.config['pretrained']
+            out_path = os.path.join(out_dir, 'generated.txt')
+            with open(out_path, 'w') as out_f:
+                for line in output:
+                    out_f.write(line + '\n')
+        print("Finished generating: {}".format(self.dirname))
+
+    def _run_epoch(self, data_loader, training=True, rl_ratio=0, verbose=10, out_predictions=False, mode=None):
         start_time = time.time()
-        mode = "train" if training else ("test" if self.is_test else "dev")
+        if mode is None:
+            mode = "train" if training else ("test" if self.is_test else "dev")
 
         if training:
             self.model.optimizer.zero_grad()
@@ -250,9 +284,10 @@ class ModelHandler(object):
             forcing_ratio = self._set_forcing_ratio(step) if training else 0
             res = self.model.predict(x_batch, step, forcing_ratio=forcing_ratio, rl_ratio=rl_ratio, update=training, out_predictions=out_predictions, mode=mode)
 
-            loss = res['loss']
-            metrics = res['metrics']
-            self._update_metrics(loss, metrics, x_batch['batch_size'], training=training)
+            if mode != 'generate':
+                loss = res['loss']
+                metrics = res['metrics']
+                self._update_metrics(loss, metrics, x_batch['batch_size'], training=training)
 
             if training:
                 self._n_train_examples += x_batch['batch_size']
@@ -266,6 +301,9 @@ class ModelHandler(object):
             if mode == 'test' and out_predictions:
                 output.extend(res['predictions'])
                 gold.extend(x_batch['target_src'])
+
+            if mode == 'generate' and out_predictions:
+                output.extend(res['predictions'])
         return output, gold
 
     def self_report(self, step, mode='train'):

@@ -37,7 +37,7 @@ def vectorize_input(batch, config, bert_model, training=True, device=None):
 
     in_graphs = {}
     for k, v in batch.in_graphs.items():
-        if k in ['node2edge', 'edge2node', 'max_num_graph_nodes']:
+        if k in ['node2edge', 'edge2node', 'max_num_graph_nodes', 'g_ent_idx']:
             in_graphs[k] = v
         else:
             in_graphs[k] = torch.LongTensor(v).to(device) if device else torch.LongTensor(v)
@@ -361,6 +361,7 @@ def vectorize_batch_graph(graphs, word_vocab, node_vocab, node_type_vocab, edge_
 
     if ext_vocab:
         batch_g_oov_idx = []
+        batch_ent_idx = []
 
     batch_node2edge = []
     batch_edge2node = []
@@ -369,13 +370,18 @@ def vectorize_batch_graph(graphs, word_vocab, node_vocab, node_type_vocab, edge_
         node_name_idx = []
         if ext_vocab:
             g_oov_idx = []
+            ent_idx = {}
 
-
-        for each in g['g_node_name_words']: # node level
+        ent2mid = {v: k for k, v in g['g_node_ids'].items()}
+        for i, each in enumerate(g['g_node_name_words']): # node level
             # Add out of vocab
             if ext_vocab:
                 oov_idx = oov_dict.add_word(example_id, tuple(each))
                 g_oov_idx.append(oov_idx)
+                ent_idx[oov_idx] = {
+                    'mid': ent2mid[i],
+                    'name': ' '.join(each)
+                }
 
             tmp_node_name_idx = []
             for word in each: # seq level
@@ -424,6 +430,7 @@ def vectorize_batch_graph(graphs, word_vocab, node_vocab, node_type_vocab, edge_
 
         if ext_vocab:
             batch_g_oov_idx.append(g_oov_idx)
+            batch_ent_idx.append(ent_idx)
             # assert len(g_oov_idx) == len(node_name_idx) + len(edge_type_idx)
             assert len(g_oov_idx) == len(node_name_idx)
 
@@ -514,6 +521,7 @@ def vectorize_batch_graph(graphs, word_vocab, node_vocab, node_type_vocab, edge_
     if ext_vocab:
         batch_g_oov_idx = padding_utils.pad_2d_vals_no_size(batch_g_oov_idx, fills=word_vocab.PAD)
         batch_graphs['g_oov_idx'] = batch_g_oov_idx
+        batch_graphs['g_ent_idx'] = batch_ent_idx
     return batch_graphs
 
 

@@ -4,6 +4,7 @@ Created on Oct, 2019
 @author: hugo
 
 '''
+import json
 import os
 import random
 import numpy as np
@@ -225,6 +226,10 @@ class Model(object):
         elif mode == 'dev':
             decoded_batch, loss_value, metrics = dev_batch(batch, self.network, self.vocab_model.word_vocab, criterion=None, show_cover_loss=self.config['show_cover_loss'])
 
+        elif mode == 'generate':
+            decoded = generate_batch(batch, self.network, self.vocab_model.word_vocab, self.config)
+            loss_value, metrics = None, None
+
         else:
             decoded_batch, metrics = test_batch(batch, self.network, self.vocab_model.word_vocab, self.config)
             loss_value = None
@@ -236,6 +241,8 @@ class Model(object):
 
         if mode == 'test' and out_predictions:
             output['predictions'] = decoded_batch
+        if mode == 'generate' and out_predictions:
+            output['predictions'] = decoded
         return output
 
 
@@ -332,6 +339,43 @@ def test_batch(batch, network, vocab, config):
     decoded_batch = beam_search(batch, network, vocab, config)
     metrics = evaluate_predictions(batch['target_src'], decoded_batch)
     return decoded_batch, metrics
+
+
+def generate_batch(batch, network, vocab, config):
+    network.train(False)
+    with torch.no_grad():
+        ext_vocab_size = batch['oov_dict'].ext_vocab_size
+        oov_dict = batch['oov_dict']
+        ent_idx = batch['in_graphs']['g_ent_idx']
+        hypotheses = batch_beam_search(network, batch, ext_vocab_size,
+                                       config['beam_size'], min_out_len=config['min_out_len'],
+                                       max_out_len=config['max_out_len'],
+                                       len_in_words=config['out_len_in_words'],
+                                       block_ngram_repeat=config['block_ngram_repeat'])
+
+        to_decode = [each[0].tokens[1:] for each in hypotheses]  # the first token is SOS
+        decoded = []
+        for i, doc in enumerate(to_decode):
+            decoded_doc, topic_ents = [], []
+            for word_idx in doc:
+                if word_idx == vocab.SOS:
+                    continue
+                if word_idx == vocab.EOS:
+                    break
+
+                if word_idx >= len(vocab):
+                    topic_ents.append(ent_idx[i][word_idx])
+                    word = oov_dict.index2word.get((i, word_idx), vocab.unk_token)
+                    word = ' '.join(word)
+                else:
+                    word = vocab.getWord(word_idx)
+                decoded_doc.append(word)
+            decoded.append(json.dumps({
+                'questions': ' '.join(decoded_doc),
+                'topic entities': topic_ents
+            }))
+        return decoded
+
 
 
 def eval_batch_output(target_src, vocab, oov_dict, *pred_tensors):

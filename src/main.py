@@ -25,6 +25,13 @@ def main(config):
     model.test()
 
 
+def generate(config):
+    print_config(config)
+    set_random_seed(config['random_seed'])
+    model = ModelHandler(config)
+    model.generate()
+
+
 def grid_search_main(config):
     print_config(config)
     set_random_seed(config['random_seed'])
@@ -78,6 +85,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-config', '--config', required=True, type=str, help='path to the config file')
     parser.add_argument('--grid_search', action='store_true', help='flag: grid search')
+    parser.add_argument('--generate', action='store_true')
     args = vars(parser.parse_args())
     return args
 
@@ -140,5 +148,7 @@ if __name__ == '__main__':
     config = get_config(cfg['config'])
     if cfg['grid_search']:
         grid_search_main(config)
+    elif cfg['generate']:
+        generate(config)
     else:
         main(config)

@@ -39,6 +39,12 @@ In order to compute the meteor score, please download the required data from [he
     ```
 * You can find the output data in the `out_dir` folder specified in the config file.
 
+### Generate Interface
+Refer to `config/mhqg-wq/graph2seq_gen.yml` for the position of dataset and pretrained model. 
+Generation is executed by the following command:
+```
+python main.py -config config/mhqg-wq/graph2seq.yml --generate
+```
 
 ## Reference
 

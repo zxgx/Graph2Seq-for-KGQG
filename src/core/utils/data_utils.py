@@ -52,7 +52,10 @@ def vectorize_input(batch, config, bert_model, training=True, device=None):
                    'targets': out_seqs.to(device) if device else out_seqs,
                    'target_lens': out_seq_lens.to(device) if device else out_seq_lens,
                    'target_src': batch.out_seq_src,
-                   'oov_dict': batch.oov_dict}
+                   'oov_dict': batch.oov_dict,
+                   'src_id': batch.src_id,
+                   'q_id': batch.q_id
+                   }
 
         if config['f_ans'] or config.get('f_ans_pool', None):
             answers = torch.LongTensor(batch.answers)
@@ -106,6 +109,9 @@ def load_data(inpath, isLower=True, levi_graph=True):
             line = line.strip()
             jo = json.loads(line, object_pairs_hook=OrderedDict)
             assert len(jo['inGraph']['g_adj']) > 0
+
+            src_id = jo.get('src_id', None)
+            q_id = jo['qId']
 
 
             topic_entity_name = jo['inGraph']['g_node_names'][jo['topicEntityID']] if jo.get('topicEntityID', None) else ''
@@ -174,7 +180,13 @@ def load_data(inpath, isLower=True, levi_graph=True):
 
                 assert len(graph['g_edge_type_words']) == edge_index
 
-            all_instances.append([Sequence(graph, is_graph=True, isLower=isLower), Sequence(out_seq, isLower=isLower, end_sym=constants._EOS_TOKEN), [Sequence(x, isLower=isLower) for x in answers]])
+            all_instances.append([
+                Sequence(graph, is_graph=True, isLower=isLower),
+                Sequence(out_seq, isLower=isLower, end_sym=constants._EOS_TOKEN),
+                [Sequence(x, isLower=isLower) for x in answers],
+                src_id,
+                q_id
+            ])
             all_seq_lens.append(len(all_instances[-1][1].words))
     return all_instances, all_seq_lens
 
@@ -251,7 +263,8 @@ class InstanceBatch(object):
         if ext_vocab:
             base_oov_idx = len(word_vocab)
             self.oov_dict = OOVDict(base_oov_idx)
-
+        self.src_id = []  # for annotate
+        self.q_id = []  # for debug
 
         batch_graph = [each[0].graph for each in instances]
         # Build graph
@@ -260,7 +273,7 @@ class InstanceBatch(object):
 
 
 
-        for i, (_, seq2, seq3) in enumerate(instances):
+        for i, (_, seq2, seq3, src_id, q_id) in enumerate(instances):
             if ext_vocab:
                 seq2_idx = seq2ext_vocab_id(i, seq2.words, word_vocab, self.oov_dict)
             else:
@@ -291,6 +304,9 @@ class InstanceBatch(object):
 
                 if config['use_bert']:
                     self.answer_bert.append(tmp_answer_bert)
+            if src_id is not None:
+                self.src_id.append(src_id)
+            self.q_id.append(q_id)
 
         self.out_seqs = padding_utils.pad_2d_vals_no_size(self.out_seqs, fills=word_vocab.PAD)
         self.out_seq_lens = np.array(self.out_seq_lens, dtype=np.int32)

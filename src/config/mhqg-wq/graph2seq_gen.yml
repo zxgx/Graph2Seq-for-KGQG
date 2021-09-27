@@ -2,7 +2,7 @@
 dataset_name: 'mywq'
 trainset: null #'../data/mywq/train.json'
 devset: null #'../data/mywq/dev.json'
-testset: '../data/mywq/to_gen.json'
+testset: '../data/mywq/test_gen.json'
 pretrained_word_embed_file: '../data/glove.840B.300d.txt'
 wmd_emb_file: null
 saved_vocab_file: '../data/mywq/vocab_model_min3'

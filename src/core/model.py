@@ -372,7 +372,9 @@ def generate_batch(batch, network, vocab, config):
                 decoded_doc.append(word)
             decoded.append(json.dumps({
                 'questions': ' '.join(decoded_doc),
-                'topic entities': topic_ents
+                'topic entities': topic_ents,
+                'src_id': batch["src_id"][i] if batch["src_id"] else None,
+                'q_id': batch['q_id'][i]
             }))
         return decoded
 

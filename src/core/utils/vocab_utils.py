@@ -195,7 +195,7 @@ def collect_vocabs(all_instances):
     all_node_ids = Counter()
     all_node_types = Counter()
     all_edge_types = Counter()
-    for (seq1, seq2, seq3) in all_instances:
+    for (seq1, seq2, seq3, _, _) in all_instances:
         for i in range(len(seq1.graph['g_node_name_words'])):
             all_words.update(seq1.graph['g_node_name_words'][i])
             if len(seq1.graph['g_node_type_words']) > 0:
